@@ -610,29 +610,55 @@ class IntegrateFtrackApi(plugin.FtrackPublishInstancePlugin):
             session.commit()
 
     def _create_components(self, session, asset_versions_data_by_id):
+        """Create components for asset versions.
+
+        Detects video review components by checking for 'ayon_review_type'
+        metadata field set to 'video' (for backwards compatibility, also
+        checks for legacy 'ftrackreview-mp4' component name).
+
+        Args:
+            session: The ftrack session.
+            asset_versions_data_by_id (dict): Asset versions data by ID.
+        """
         for item in asset_versions_data_by_id.values():
             asset_version_entity = item["asset_version"]
             component_items = item["component_items"]
 
             component_entities = session.query(
                 (
-                    "select id, name from Component where version_id is \"{}\""
+                    "select id, name, metadata from Component"
+                    " where version_id is \"{}\""
                 ).format(asset_version_entity["id"])
             ).all()
 
-            existing_component_names = {
-                component["name"]
-                for component in component_entities
-            }
+            # Check for existing video review components
+            # (by metadata or legacy name)
+            contain_review = False
+            for component in component_entities:
+                component_metadata = component.get("metadata") or {}
+                if component_metadata.get("ayon_review_type") == "video":
+                    contain_review = True
+                    break
+                # Legacy support for ftrackreview-mp4 name
+                if component["name"] == "ftrackreview-mp4":
+                    contain_review = True
+                    break
 
-            contain_review = "ftrackreview-mp4" in existing_component_names
             thumbnail_component_item = None
             for component_item in component_items:
                 component_data = component_item.get("component_data") or {}
-                component_name = component_data.get("name")
-                if component_name == "ftrackreview-mp4":
+                component_metadata = component_data.get("metadata") or {}
+                # Check for video review by metadata marker
+                if component_metadata.get("ayon_review_type") == "video":
                     contain_review = True
-                elif component_name == "ftrackreview-image":
+                # Legacy support for ftrackreview-mp4 name
+                elif component_data.get("name") == "ftrackreview-mp4":
+                    contain_review = True
+                # Check for image review (thumbnail candidate)
+                elif (
+                    component_metadata.get("ayon_review_type") == "image"
+                    or component_data.get("name") == "ftrackreview-image"
+                ):
                     thumbnail_component_item = component_item
 
             if contain_review and thumbnail_component_item:

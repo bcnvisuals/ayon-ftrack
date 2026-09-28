@@ -11,11 +11,19 @@ from ayon_ftrack.common import (
 
 
 class DownloadReviewMedia(LocalAction):
+    """Action to download review media from selected versions.
+
+    Identifies review components by the 'ayon_review_type' metadata field
+    (values: 'video' or 'image'). For backwards compatibility, also supports
+    legacy component names 'ftrackreview-mp4' and 'ftrackreview-image'.
+    """
+
     label = "Download Review Media"
     identifier = "download.reviewables"
     description = "Download review media from selected versions"
 
-    review_names = {"ftrackreview-mp4", "ftrackreview-image"}
+    # Legacy component names for backwards compatibility
+    legacy_review_names = {"ftrackreview-mp4", "ftrackreview-image"}
 
     def discover(self, _session, entities, _event):
         # Only show this for Versions when a selection has been made
@@ -61,16 +69,25 @@ class DownloadReviewMedia(LocalAction):
             for version in asset_versions
         }
         src_component_ids = set()
-        joined_review_names = self.join_filter_values(self.review_names)
         components = []
         for chunk_ids in create_chunks(asset_versions_by_id.keys()):
             joined_version_ids = self.join_filter_values(chunk_ids)
+            # Query all components and filter by metadata or legacy names
             for component in session.query(
                 "select id, name, version_id, metadata from Component"
-                f" where name in ({joined_review_names})"
-                f" and version_id in ({joined_version_ids})"
+                f" where version_id in ({joined_version_ids})"
             ).all():
-                source_component_id = component["metadata"].get(
+                # Check if this is a review component
+                component_metadata = component.get("metadata") or {}
+                ayon_review_type = component_metadata.get("ayon_review_type")
+                is_review = (
+                    ayon_review_type in {"video", "image"}
+                    or component["name"] in self.legacy_review_names
+                )
+                if not is_review:
+                    continue
+
+                source_component_id = component_metadata.get(
                     "source_component_id"
                 )
                 if not source_component_id:
@@ -158,8 +175,11 @@ class DownloadReviewMedia(LocalAction):
 
             ext = component["file_type"].lstrip(".")
 
+            # Use component name as basename
+            # For legacy review names (ftrackreview-mp4, ftrackreview-image),
+            # generate a descriptive name from asset and version
             basename = component["name"]
-            if component["name"] in self.review_names:
+            if component["name"] in self.legacy_review_names:
                 asset_version_id = component["version_id"]
                 asset_version = asset_versions_by_id[asset_version_id]
                 asset_id = asset_version["asset_id"]

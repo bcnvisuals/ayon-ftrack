@@ -65,7 +65,6 @@ class IntegrateFtrackInstance(plugin.FtrackPublishInstancePlugin):
         {"name": "reference", "asset_type": "reference"}
     ]
     keep_first_product_name_for_review = True
-    upload_reviewable_with_origin_name = False
     asset_versions_status_profiles = []
     additional_metadata_keys = []
 
@@ -327,15 +326,21 @@ class IntegrateFtrackInstance(plugin.FtrackPublishInstancePlugin):
             repre_path = get_publish_repre_path(instance, repre, False)
             # add metadata to review component
             if self._is_repre_video(repre):
-                component_name = "ftrackreview-mp4"
+                # Use the original filename (without extension) as component name
+                filename = os.path.basename(repre_path)
+                component_name = os.path.splitext(filename)[0]
                 metadata = self._prepare_video_component_metadata(
                     instance, repre, repre_path, True
                 )
+                # Add review type marker for identification
+                metadata["ayon_review_type"] = "video"
             else:
                 component_name = "ftrackreview-image"
                 metadata = self._prepare_image_component_metadata(
                     repre, repre_path
                 )
+                # Add review type marker for identification
+                metadata["ayon_review_type"] = "image"
                 review_item["thumbnail"] = True
 
             review_item.update({
@@ -359,14 +364,6 @@ class IntegrateFtrackInstance(plugin.FtrackPublishInstancePlugin):
 
             # Add item to component list
             component_list.append(review_item)
-
-            if self.upload_reviewable_with_origin_name:
-                origin_name_component = copy.deepcopy(review_item)
-                filename = os.path.basename(repre_path)
-                origin_name_component["component_data"]["name"] = (
-                    os.path.splitext(filename)[0]
-                )
-                component_list.append(origin_name_component)
 
         if not review_representations and thumbnail_item:
             component_list.append(thumbnail_item)
