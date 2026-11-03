@@ -238,13 +238,25 @@ class PostFtrackHook(PostLaunchHook):
         task_ftrack_id = ((ayon_task or {}).get("ownAttrib") or {}).get(
             FTRACK_ID_ATTRIB
         )
+        bridged = is_project_bridged(project_entity)
         if task_ftrack_id:
             task_entity = session.query(
-                f"Task where id is '{task_ftrack_id}'"
+                "select id, name, parent_id, project_id from Task"
+                f" where id is '{task_ftrack_id}'"
             ).first()
+            # Same rule as publishing: off bridged projects the task must be
+            #   under this folder's ftrack entity, else use the name lookup
+            if task_entity is not None:
+                ok = (
+                    task_entity["project_id"] == parent_entity["project_id"]
+                    if bridged
+                    else task_entity["parent_id"] == parent_entity["id"]
+                )
+                if not ok:
+                    task_entity = None
 
         parent_id = parent_entity["id"]
-        if task_entity is None and not is_project_bridged(project_entity):
+        if task_entity is None and not bridged:
             task_entity = session.query(
                 f"Task where parent_id is '{parent_id}'"
                 f" and name is '{task_name}'"

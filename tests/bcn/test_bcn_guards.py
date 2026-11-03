@@ -230,11 +230,10 @@ class TestDeleteAction(unittest.TestCase):
         out = self.action.launch(None, [self.shot], self.event)
         self.assertFalse(out["success"])
 
-    def test_non_admin_hidden_and_refused(self):
+    def test_non_admin_keeps_stock_behaviour_off_bridged(self):
+        # Review fix: projects that aren't bridged keep the stock role rules
         self.roles = ["project manager"]
-        self.assertFalse(self.action.discover(None, [self.shot], self.event))
-        out = self.action.launch(None, [self.shot], self.event)
-        self.assertIn("Administrators", out["message"])
+        self.assertTrue(self.action.discover(None, [self.shot], self.event))
 
 
 # --- publish ---------------------------------------------------------------
@@ -276,12 +275,14 @@ class TestCollectFtrackApi(unittest.TestCase):
             {"name": "comp", "ownAttrib": {"ftrackId": "fttask"}},
             {"name": "paint", "ownAttrib": {}},
         ]
-        self.shot = Entity("Shot", id="ftshot", name="SH010", parent_id="film")
+        self.shot = Entity("Shot", id="ftshot", name="SH010", parent_id="film",
+                           project_id="ftproj")
         self.fttask = Entity("Task", id="fttask", name="Comp_v2",
-                             parent_id="ftshot")
+                             parent_id="ftshot", project_id="ftproj")
         self.ftpaint = Entity("Task", id="ftpaint", name="paint",
-                              parent_id="ftshot")
-        self.unlinked = Entity("Shot", id="ft99", name="SH099", parent_id="film")
+                              parent_id="ftshot", project_id="ftproj")
+        self.unlinked = Entity("Shot", id="ft99", name="SH099", parent_id="film",
+                               project_id="ftproj")
 
     def run_plugin(self, bridged, folder, task):
         ft_project = project(bridged)
@@ -309,6 +310,31 @@ class TestCollectFtrackApi(unittest.TestCase):
             self.assertIs(ctx.data["ftrackEntity"], self.shot)
             self.assertIs(ctx.data["ftrackTask"], self.fttask,
                           f"renamed task found by id (bridged={bridged})")
+
+    def test_stale_copied_ftrackid_nonbridged_falls_back_to_name(self):
+        # Review High 2: the AYON task links to a task under ANOTHER shot.
+        # Stock picks by name under this shot; the fork must not use the link.
+        # (the fake session doesn't filter by parent, so name it apart)
+        self.fttask = Entity("Task", id="fttask", name="Comp_elsewhere",
+                             parent_id="ftshot2", project_id="ftproj")
+        self.ftcomp_here = Entity("Task", id="ftcomp", name="comp",
+                                  parent_id="ftshot", project_id="ftproj")
+        self.ftpaint = self.ftcomp_here      # name lookup returns this shot's comp
+        ctx, _ = self.run_plugin(False, "/Film/SH010", "comp")
+        self.assertIs(ctx.data["ftrackTask"], self.ftcomp_here)
+
+    def test_moved_task_bridged_found_by_id(self):
+        # Bridged: the ID is the link, even if the task moved to another shot
+        self.fttask = Entity("Task", id="fttask", name="Comp_v2",
+                             parent_id="ftshot2", project_id="ftproj")
+        ctx, _ = self.run_plugin(True, "/Film/SH010", "comp")
+        self.assertIs(ctx.data["ftrackTask"], self.fttask)
+
+    def test_other_project_id_never_used(self):
+        self.fttask = Entity("Task", id="fttask", name="Comp_v2",
+                             parent_id="x", project_id="OTHER")
+        ctx, _ = self.run_plugin(True, "/Film/SH010", "comp")
+        self.assertIsNone(ctx.data["ftrackTask"])
 
     def test_unlinked_folder_bridged_publishes_without_ftrack(self):
         ctx, session = self.run_plugin(True, "/Film/SH099", "comp")
@@ -374,9 +400,11 @@ class TestLaunchHook(unittest.TestCase):
         self.mod.ayon_api.get_folder_by_path.return_value = {
             "id": "f1", "attrib": {"ftrackId": "ftshot"}}
         self.hook = bare(self.mod.PostFtrackHook)
-        self.shot = Entity("Shot", id="ftshot")
-        self.renamed = Entity("Task", id="fttask", name="Comp_v2")
-        self.byname = Entity("Task", id="ftname", name="comp")
+        self.shot = Entity("Shot", id="ftshot", project_id="ftproj")
+        self.renamed = Entity("Task", id="fttask", name="Comp_v2",
+                              parent_id="ftshot", project_id="ftproj")
+        self.byname = Entity("Task", id="ftname", name="comp",
+                             parent_id="ftshot", project_id="ftproj")
 
     def find(self, bridged, linked):
         self.mod.ayon_api.get_task_by_name.return_value = {

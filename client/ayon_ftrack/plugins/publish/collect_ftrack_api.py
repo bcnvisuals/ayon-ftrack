@@ -272,10 +272,15 @@ class CollectFtrackApi(plugin.FtrackPublishContextPlugin):
             return output
 
         task_ftrack_ids = {}
-        folder = ayon_api.get_folder_by_path(
-            project_name, folder_path, fields={"id"}
-        )
-        if folder:
+        # Reuse the folder id fetched by 'find_ftrack_entities'
+        folder_id = getattr(self, "_bcn_folder_ids", {}).get(folder_path)
+        if folder_id is None:
+            folder = ayon_api.get_folder_by_path(
+                project_name, folder_path, fields={"id"}
+            )
+            folder_id = folder["id"] if folder else None
+        if folder_id:
+            folder = {"id": folder_id}
             tasks = ayon_api.get_tasks(
                 project_name,
                 folder_ids=[folder["id"]],
@@ -297,12 +302,22 @@ class CollectFtrackApi(plugin.FtrackPublishContextPlugin):
             task_by_id = {
                 task["id"]: task
                 for task in session.query(
-                    "select id, name, parent_id from Task"
+                    "select id, name, parent_id, project_id from Task"
                     f" where id in ({joined_ids})"
                 ).all()
             }
             for low_name, ftrack_id in task_ftrack_ids.items():
-                output[low_name] = task_by_id.get(ftrack_id)
+                task_entity = task_by_id.get(ftrack_id)
+                if task_entity is not None and not _id_hit_ok(
+                    task_entity, ftrack_entity, bridged
+                ):
+                    self.log.warning(
+                        f"Task \"{low_name}\" on \"{folder_path}\" links to"
+                        " an ftrack task under another entity; ignoring the"
+                        " link."
+                    )
+                    task_entity = None
+                output[low_name] = task_entity
 
         missing = [name for name, task in output.items() if task is None]
         if bridged:
@@ -337,6 +352,7 @@ class CollectFtrackApi(plugin.FtrackPublishContextPlugin):
             project_entity["full_name"],
             folder_paths=folder_paths_s,
             fields={
+                "id",
                 "path",
                 f"attrib.{FTRACK_ID_ATTRIB}",
             },
@@ -345,6 +361,12 @@ class CollectFtrackApi(plugin.FtrackPublishContextPlugin):
         folders_by_path = {
             folder["path"]: folder
             for folder in folders
+        }
+        # BCN: remembered for 'find_task_entities' (saves a query per folder)
+        self._bcn_folder_ids = {
+            path: folder["id"]
+            for path, folder in folders_by_path.items()
+            if folder.get("id")
         }
 
         folder_path_by_ftrack_id = {}
@@ -437,3 +459,19 @@ class CollectFtrackApi(plugin.FtrackPublishContextPlugin):
             if entity is not None:
                 output[folder_path] = entity
         return output
+
+
+def _id_hit_ok(task_entity, ftrack_entity, bridged):
+    """BCN: may a task found by the AYON task's 'ftrackId' be used?
+
+    Projects that aren't bridged keep stock semantics: the task must sit
+    under the folder's ftrack entity, so a stale or copied 'ftrackId' never
+    sends a publish to another shot (it falls back to the name lookup).
+    On bridged projects the ID is the link, so a task moved in ftrack is
+    still found, but it must be in the same project.
+    """
+    if ftrack_entity is None:
+        return False
+    if bridged:
+        return task_entity["project_id"] == ftrack_entity["project_id"]
+    return task_entity["parent_id"] == ftrack_entity["id"]

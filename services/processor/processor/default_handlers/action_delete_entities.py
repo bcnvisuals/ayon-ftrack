@@ -106,9 +106,7 @@ class DeleteEntitiesAction(ServerAction):
         project = self.get_project_from_entity(entities[0], session)
         if is_project_bridged(project):
             return BRIDGED_PROJECT_MESSAGE
-        roles = self.get_user_roles_from_event(session, event, lower=True)
-        if "administrator" not in roles:
-            return "Only ftrack Administrators can delete AYON entities."
+        # Other projects keep stock behaviour (the settings 'role_list')
         return None
 
     def launch(self, session, entities, event):
