@@ -12,6 +12,8 @@ from ftrack_common import (
     create_chunks,
     ServerAction,
     get_service_ftrack_icon_url,
+    is_project_bridged,
+    BRIDGED_PROJECT_MESSAGE,
 )
 
 
@@ -88,9 +90,32 @@ class DeleteEntitiesAction(ServerAction):
 
         if not is_valid:
             return False
+        # BCN: the action finds AYON folders by ftrack names, which can hit
+        #   the wrong folder after renames. Never offer it on bridged
+        #   projects, and elsewhere only to ftrack Administrators.
+        if self._bcn_blocked(session, entities, event):
+            return False
         return self.valid_roles(session, entities, event)
 
+    def _bcn_blocked(self, session, entities, event):
+        """BCN: is the action blocked for this selection and user?
+
+        Returns:
+            Union[str, None]: Reason when blocked, None when allowed.
+        """
+        project = self.get_project_from_entity(entities[0], session)
+        if is_project_bridged(project):
+            return BRIDGED_PROJECT_MESSAGE
+        roles = self.get_user_roles_from_event(session, event, lower=True)
+        if "administrator" not in roles:
+            return "Only ftrack Administrators can delete AYON entities."
+        return None
+
     def launch(self, session, entities, event):
+        # BCN: re-check on launch; discover is not a security boundary
+        reason = self._bcn_blocked(session, entities, event)
+        if reason:
+            return {"success": False, "message": reason}
         values = event["data"].get("values")
         if not values:
             return self._first_interface(session, entities, event)

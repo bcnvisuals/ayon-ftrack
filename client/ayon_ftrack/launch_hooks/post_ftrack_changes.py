@@ -6,6 +6,7 @@ import ftrack_api
 from ayon_ftrack.common import (
     FTRACK_ID_ATTRIB,
     is_ftrack_enabled_in_settings,
+    is_project_bridged,
 )
 
 from ayon_core.settings import get_project_settings
@@ -223,10 +224,31 @@ class PostFtrackHook(PostLaunchHook):
             )
             return None
 
+        # BCN: the AYON task's own 'ftrackId' is the link, so a task renamed
+        #   in ftrack is still found. Name lookup only on projects that are
+        #   not managed by the ftrack bridge.
+        task_entity = None
+        ayon_task = ayon_api.get_task_by_name(
+            project_name,
+            folder["id"],
+            task_name,
+            fields={"id", f"attrib.{FTRACK_ID_ATTRIB}"},
+            own_attributes=True,
+        )
+        task_ftrack_id = ((ayon_task or {}).get("ownAttrib") or {}).get(
+            FTRACK_ID_ATTRIB
+        )
+        if task_ftrack_id:
+            task_entity = session.query(
+                f"Task where id is '{task_ftrack_id}'"
+            ).first()
+
         parent_id = parent_entity["id"]
-        task_entity = session.query(
-            f"Task where parent_id is '{parent_id}' and name is '{task_name}'"
-        ).first()
+        if task_entity is None and not is_project_bridged(project_entity):
+            task_entity = session.query(
+                f"Task where parent_id is '{parent_id}'"
+                f" and name is '{task_name}'"
+            ).first()
         if task_entity is None:
             self.log.warning(
                 f"Couldn't find task '{folder_path}/{task_name}' in ftrack."

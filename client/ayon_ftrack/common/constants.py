@@ -15,6 +15,12 @@ CUST_ATTR_GROUP = "ayon"
 # Project custom attribute which define if project should be auto-synced
 CUST_ATTR_AUTO_SYNC = "auto_sync_enabled"
 
+# BCN: project custom attribute which marks a project as managed by the
+#   ftrack bridge (selective links instead of a full mirror). Full syncs,
+#   'Prepare project', event sync and name based lookups are disabled on
+#   bridged projects, because they would rename or deactivate AYON data.
+CUST_ATTR_BRIDGED = "ayon_bridged"
+
 FPS_KEYS = {
     "fps",
     "fps_string"

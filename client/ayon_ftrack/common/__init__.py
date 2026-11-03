@@ -18,6 +18,7 @@ __all__ = (
     "CUST_ATTR_KEY_SYNC_FAIL",
     "CUST_ATTR_GROUP",
     "CUST_ATTR_AUTO_SYNC",
+    "CUST_ATTR_BRIDGED",
 
     "FPS_KEYS",
     "CUST_ATTR_INTENT",
@@ -37,6 +38,10 @@ __all__ = (
     "get_service_ftrack_icon_url",
 
     "map_ftrack_users_to_ayon_users",
+
+    "is_project_bridged",
+    "is_project_bridged_by_name",
+    "BRIDGED_PROJECT_MESSAGE",
 
     "MappedAYONAttribute",
     "CustomAttributesMapping",
@@ -72,6 +77,7 @@ from .constants import (
 
     CUST_ATTR_GROUP,
     CUST_ATTR_AUTO_SYNC,
+    CUST_ATTR_BRIDGED,
 
     FPS_KEYS,
     CUST_ATTR_INTENT,
@@ -98,6 +104,12 @@ from .lib import (
 )
 
 from .users import map_ftrack_users_to_ayon_users
+
+from .bridged import (
+    is_project_bridged,
+    is_project_bridged_by_name,
+    BRIDGED_PROJECT_MESSAGE,
+)
 
 from .custom_attributes import (
     MappedAYONAttribute,

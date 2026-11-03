@@ -14,6 +14,7 @@ from ayon_ftrack.common import (
     get_all_attr_configs,
     get_custom_attributes_mapping,
     query_custom_attribute_values,
+    is_project_bridged,
 )
 from ayon_ftrack.pipeline import plugin
 
@@ -76,6 +77,20 @@ class IntegrateHierarchyToFtrack(plugin.FtrackPublishContextPlugin):
             raise KnownPublishError(
                 "Project \"{}\" was not found on ftrack.".format(project_name)
             )
+
+        # BCN: this matches the ftrack hierarchy by AYON names and would
+        #   create duplicate ftrack shots once names diverge. On bridged
+        #   projects shots start in ftrack and are linked on the ftrack
+        #   Bridge page, so editorial publishes don't touch ftrack here.
+        if (
+            context.data.get("ftrackProjectBridged")
+            or is_project_bridged(ft_project)
+        ):
+            self.log.info(
+                "Project is bridged: skipping ftrack hierarchy integration."
+                " Create and link new shots on the ftrack Bridge page."
+            )
+            return
 
         # import ftrack hierarchy
         self.import_to_ftrack(

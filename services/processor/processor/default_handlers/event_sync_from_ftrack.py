@@ -34,6 +34,7 @@ from ftrack_common import (
     CUST_ATTR_KEY_SYNC_FAIL,
 
     CUST_ATTR_AUTO_SYNC,
+    is_project_bridged,
 
     MappedAYONAttribute,
     CustomAttributesMapping,
@@ -634,6 +635,15 @@ class SyncProcess:
         ft_project = self.ft_project
         if ft_project is None:
             self.log.error("Failed to query ftrack project. Skipping event")
+            return False
+
+        # BCN: bridged projects are linked by ID on the ftrack Bridge page.
+        #   Event sync (and the full sync it triggers when auto-sync is
+        #   switched on) would mirror ftrack names into AYON, so skip them.
+        if is_project_bridged(ft_project):
+            self.log.debug(
+                f"Skipping event sync of bridged project \"{self.project_name}\""
+            )
             return False
 
         if CUST_ATTR_AUTO_SYNC not in ft_project["custom_attributes"]:

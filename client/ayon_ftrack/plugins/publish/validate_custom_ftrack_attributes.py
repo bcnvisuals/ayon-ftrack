@@ -55,6 +55,13 @@ class ValidateFtrackAttributes(plugin.FtrackPublishInstancePlugin):
     def process(self, instance):
         context = instance.context
         task = context.data.get('ftrackTask', False)
+        if not task and context.data.get("ftrackProjectBridged"):
+            # BCN: on bridged projects an AYON task doesn't have to be
+            #   linked to ftrack; there is nothing in ftrack to validate.
+            self.log.info(
+                "Task is not linked to ftrack (bridged project). Skipping."
+            )
+            return
         if not task:
             self._raise(AttributeError,
                         "Missing ftrack Task entity in context")

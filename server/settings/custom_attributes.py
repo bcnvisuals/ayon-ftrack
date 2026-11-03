@@ -70,6 +70,11 @@ class MandatoryAttributesModel(BaseSettingsModel):
         default_factory=CustomAttributeModel,
         title="AYON auto-sync",
     )
+    # BCN: project flag for the ftrack bridge
+    ayon_bridged: CustomAttributeModel = CustomAttributeModel(
+        default_factory=CustomAttributeModel,
+        title="AYON bridged",
+    )
 
 
 class CustomAttributesModel(BaseSettingsModel):
@@ -123,6 +128,13 @@ DEFAULT_CUSTOM_ATTRIBUTES_SETTINGS = {
                 "API",
                 "Administrator"
             ]
+        },
+        "ayon_bridged": {
+            "write_security_roles": [
+                "API",
+                "Administrator"
+            ],
+            "read_security_roles": []
         },
     },
     "attributes_mapping": {

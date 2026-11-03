@@ -16,6 +16,8 @@ from ftrack_common import (
     get_custom_attributes_mapping,
     query_custom_attribute_values,
     map_ftrack_users_to_ayon_users,
+    is_project_bridged,
+    BRIDGED_PROJECT_MESSAGE,
 )
 
 from processor.lib import SyncFromFtrack
@@ -258,6 +260,10 @@ class PrepareProjectServer(ServerAction):
         event_values = event["data"].get("values")
 
         project_entity = entities[0]
+        # BCN: 'Prepare project' ends in a full sync; bridged projects are
+        #   created and linked on the ftrack Bridge page instead.
+        if is_project_bridged(project_entity):
+            return {"success": False, "message": BRIDGED_PROJECT_MESSAGE}
         result = self._slugify_name_handling(session, event, project_entity)
         if result is not None:
             return result
@@ -667,6 +673,9 @@ class PrepareProjectServer(ServerAction):
 
         project_entity = entities[0]
         project_name = project_entity["full_name"]
+        # BCN: same guard as in 'interface', in case launch is called directly
+        if is_project_bridged(project_entity):
+            return {"success": False, "message": BRIDGED_PROJECT_MESSAGE}
         syncer = SyncFromFtrack(session, project_name, self.log)
         # TODO validate project code too
         if syncer.project_exists_in_ayon():

@@ -4,6 +4,8 @@ from ftrack_common import (
     ServerAction,
     get_service_ftrack_icon_url,
     CUST_ATTR_AUTO_SYNC,
+    is_project_bridged,
+    BRIDGED_PROJECT_MESSAGE,
 )
 from processor.lib import SyncFromFtrack
 
@@ -31,9 +33,17 @@ class SyncFromFtrackAction(ServerAction):
         return self.valid_roles(session, entities, event)
 
     def launch(self, session, entities, event):
-        self.log.info("Synchronization begins")
         project = self.get_project_from_entity(entities[0])
         project_name = project["full_name"]
+        # BCN: a full sync renames AYON entities to ftrack names and
+        #   deactivates everything it can't match, which breaks a project
+        #   managed by the ftrack bridge.
+        if is_project_bridged(project):
+            self.log.info(
+                f"Sync to AYON refused for bridged project '{project_name}'"
+            )
+            return {"success": False, "message": BRIDGED_PROJECT_MESSAGE}
+        self.log.info("Synchronization begins")
         syncer = SyncFromFtrack(session, project_name, self.log)
         syncer.sync_to_server()
         report_items = syncer.report_items
@@ -79,6 +89,14 @@ class SyncFromFtrackAction(ServerAction):
 
             auto_sync = project["custom_attributes"].get(CUST_ATTR_AUTO_SYNC)
             if not auto_sync:
+                continue
+
+            # BCN: never re-sync a bridged project, even with auto-sync on
+            if is_project_bridged(project):
+                self.log.info(
+                    "Skipping leecher-start sync of bridged project"
+                    f" '{project['full_name']}'"
+                )
                 continue
 
             selections.append({

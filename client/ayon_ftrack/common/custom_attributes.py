@@ -16,6 +16,7 @@ from .constants import (
     CUST_ATTR_KEY_LIST_TYPE,
     CUST_ATTR_KEY_SYNC_FAIL,
     CUST_ATTR_AUTO_SYNC,
+    CUST_ATTR_BRIDGED,
 )
 
 if typing.TYPE_CHECKING:
@@ -109,6 +110,17 @@ class CustomAttributesMapping:
             if attr_conf is not None and attr_conf["key"] == key:
                 return mapping_item
 
+
+
+# BCN: roles for mandatory attributes missing from older saved settings.
+#   Everyone may read 'ayon_bridged' (publish plugins read it with the
+#   artist's ftrack login); only API and Administrator may change it.
+_DEFAULT_MANDATORY_ROLES = {
+    CUST_ATTR_BRIDGED: {
+        "read_security_roles": [],
+        "write_security_roles": ["API", "Administrator"],
+    },
+}
 
 def get_all_attr_configs(
     session: ftrack_api.Session,
@@ -530,10 +542,26 @@ def ensure_mandatory_custom_attributes_exists(
             "is_hierarchical": False,
             "entity_type": "show",
             "group_id": group_id,
-        }
+        },
+        # BCN: marks projects managed by the ftrack bridge
+        {
+            "key": CUST_ATTR_BRIDGED,
+            "type": "boolean",
+            "label": "AYON bridged",
+            "default": False,
+            "is_hierarchical": False,
+            "entity_type": "show",
+            "group_id": group_id,
+        },
     ]:
         key = item["key"]
-        attr_settings = mandatory_attributes_settings[key]
+        # BCN: studio settings saved before 'ayon_bridged' existed don't have
+        #   an entry for it; fall back to the model defaults.
+        attr_settings = mandatory_attributes_settings.get(key)
+        if attr_settings is None:
+            attr_settings = _DEFAULT_MANDATORY_ROLES.get(
+                key, {"read_security_roles": [], "write_security_roles": []}
+            )
         read_roles = []
         write_roles = []
         for role_names, roles in (
