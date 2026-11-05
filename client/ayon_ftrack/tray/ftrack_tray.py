@@ -506,7 +506,8 @@ class FtrackEventsThread(QtCore.QThread):
         ft_project = find_ftrack_project(
             self.timer_session, input_data["project_name"], ("id", "full_name"))
         if ft_project is None:
-            self.log.warning(
+            import logging
+            logging.getLogger(__name__).warning(
                 "Couldn't find project '{}' in ftrack; timer not started".format(
                     input_data["project_name"]))
             return
