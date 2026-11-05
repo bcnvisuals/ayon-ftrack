@@ -204,9 +204,9 @@ class PostFtrackHook(PostLaunchHook):
             Union[ftrack_api.entity.base.Entity, None]: ftrack task entity.
         """
 
-        project_entity = session.query(
-            f"Project where full_name is \"{project_name}\""
-        ).first()
+        # BCN: same project lookup as publishing (name, then bridge id)
+        from ayon_ftrack.common import find_ftrack_project
+        project_entity = find_ftrack_project(session, project_name)
         if not project_entity:
             self.log.warning(
                 f"Couldn't find project '{project_name}' in ftrack."

@@ -6,7 +6,11 @@ import ayon_api
 
 from ayon_core.pipeline import PublishError
 
-from ayon_ftrack.common import FTRACK_ID_ATTRIB, is_project_bridged
+from ayon_ftrack.common import (
+    FTRACK_ID_ATTRIB,
+    is_project_bridged,
+    find_ftrack_project,
+)
 from ayon_ftrack.pipeline import plugin
 
 
@@ -33,9 +37,11 @@ class CollectFtrackApi(plugin.FtrackPublishContextPlugin):
         task_name = context.data["task"]
 
         # Find project entity
-        project_entity = session.query(
-            f'Project where full_name is "{project_name}"'
-        ).first()
+        # BCN: by name first (stock), then by the ftrack id the bridge stores
+        project_entity = find_ftrack_project(
+            session, project_name, ("id", "full_name", "name", "custom_attributes", "project_schema"))
+        # AYON queries below use the AYON project name, never the ftrack one
+        self._bcn_ayon_project = project_name
         if project_entity is None:
             raise PublishError(
                 f"Failed to find project \"{project_name}\" in ftrack.",
@@ -206,7 +212,7 @@ class CollectFtrackApi(plugin.FtrackPublishContextPlugin):
 
         session = context.data["ftrackSession"]
         project_entity = context.data["ftrackProject"]
-        project_name = project_entity["full_name"]
+        project_name = context.data["projectName"]
         folder_paths = set(instance_by_folder_and_task.keys())
 
         bridged = context.data.get("ftrackProjectBridged", False)
@@ -349,7 +355,7 @@ class CollectFtrackApi(plugin.FtrackPublishContextPlugin):
         #   we must be assured that 'ownAttrib' is used to avoid collisions
         #   because of hierarchical values.
         folders = ayon_api.get_folders(
-            project_entity["full_name"],
+            getattr(self, "_bcn_ayon_project", None) or project_entity["full_name"],
             folder_paths=folder_paths_s,
             fields={
                 "id",

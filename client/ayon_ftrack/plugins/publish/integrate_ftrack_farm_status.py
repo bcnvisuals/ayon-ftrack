@@ -90,9 +90,13 @@ class IntegrateFtrackFarmStatus(plugin.FtrackPublishContextPlugin):
         # Prepare available task statuses on the project
         project_name = context.data["projectName"]
         session = context.data["ftrackSession"]
-        project_entity = session.query((
-            "select project_schema from Project where full_name is \"{}\""
-        ).format(project_name)).one()
+        # BCN: same project lookup as the collector (name, then bridge id)
+        from ayon_ftrack.common import find_ftrack_project
+        project_entity = find_ftrack_project(
+            session, project_name, ("id", "full_name", "project_schema"))
+        if project_entity is None:
+            self.log.warning(f"Couldn't find project '{project_name}' in ftrack.")
+            return
         project_schema = project_entity["project_schema"]
 
         task_type_ids = set()

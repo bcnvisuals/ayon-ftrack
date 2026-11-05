@@ -41,6 +41,7 @@ __all__ = (
 
     "is_project_bridged",
     "is_project_bridged_by_name",
+    "find_ftrack_project",
     "BRIDGED_PROJECT_MESSAGE",
 
     "MappedAYONAttribute",
@@ -108,6 +109,7 @@ from .users import map_ftrack_users_to_ayon_users
 from .bridged import (
     is_project_bridged,
     is_project_bridged_by_name,
+    find_ftrack_project,
     BRIDGED_PROJECT_MESSAGE,
 )
 

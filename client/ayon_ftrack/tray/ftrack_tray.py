@@ -500,11 +500,21 @@ class FtrackEventsThread(QtCore.QThread):
 
         input_data['entity_name'] = input_data['hierarchy'][-1]
 
+        # BCN: find the ftrack project like publishing does (name, then the
+        #   bridge's stored id), so the timer also starts on bridged projects
+        from ayon_ftrack.common import find_ftrack_project
+        ft_project = find_ftrack_project(
+            self.timer_session, input_data["project_name"], ("id", "full_name"))
+        if ft_project is None:
+            self.log.warning(
+                "Couldn't find project '{}' in ftrack; timer not started".format(
+                    input_data["project_name"]))
+            return
         task_query = (
             'Task where name is "{task_name}"'
             ' and parent.name is "{entity_name}"'
-            ' and project.full_name is "{project_name}"'
-        ).format(**input_data)
+            ' and project_id is "{project_id}"'
+        ).format(project_id=ft_project["id"], **input_data)
 
         task = self.timer_session.query(task_query).one()
         self.last_task = task

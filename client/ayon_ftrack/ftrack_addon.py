@@ -280,11 +280,12 @@ class FtrackAddon(
             return 0
 
         session = self.create_ftrack_session()
+        # BCN: parent_id (the folder's ftrack id) already pins the project;
+        #   matching the AYON name to ftrack's full name fails on bridged projects
         query = (
             'select time_logged from Task where name is "{}"'
             ' and parent_id is "{}"'
-            ' and project.full_name is "{}"'
-        ).format(task_name, ftrack_id, project_name)
+        ).format(task_name, ftrack_id)
         task_entity = session.query(query).first()
         if not task_entity:
             return 0

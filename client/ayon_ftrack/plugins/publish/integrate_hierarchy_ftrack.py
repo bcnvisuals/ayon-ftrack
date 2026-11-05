@@ -68,11 +68,9 @@ class IntegrateHierarchyToFtrack(plugin.FtrackPublishContextPlugin):
 
         session = context.data["ftrackSession"]
         project_name = context.data["projectName"]
-        ft_project = session.query(
-            'select id, full_name from Project where full_name is "{}"'.format(
-                project_name
-            )
-        ).first()
+        # BCN: same project lookup as the collector (name, then bridge id)
+        from ayon_ftrack.common import find_ftrack_project
+        ft_project = find_ftrack_project(session, project_name, ("id", "full_name"))
         if not ft_project:
             raise KnownPublishError(
                 "Project \"{}\" was not found on ftrack.".format(project_name)

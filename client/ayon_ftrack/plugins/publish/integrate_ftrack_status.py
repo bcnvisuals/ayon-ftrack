@@ -35,9 +35,16 @@ class CollectFtrackTaskStatuses(plugin.FtrackPublishContextPlugin):
 
         # Prepare available task statuses on the project
         project_name = context.data["projectName"]
-        project_entity = ftrack_session.query((
-            "select project_schema from Project where full_name is \"{}\""
-        ).format(project_name)).one()
+        # BCN: the project the collector found (name first, then the bridge's
+        #   stored ftrack id); never look it up by full name only
+        project_entity = context.data.get("ftrackProject")
+        if project_entity is None:
+            from ayon_ftrack.common import find_ftrack_project
+            project_entity = find_ftrack_project(
+                ftrack_session, project_name, ("id", "full_name", "project_schema"))
+        if project_entity is None:
+            self.log.warning(f"Couldn't find project '{project_name}' in ftrack.")
+            return
         project_schema = project_entity["project_schema"]
 
         task_type_ids = {
